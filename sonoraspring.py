@@ -2,6 +2,7 @@ import cv2 #opencv library for video processing
 import mediapipe as mp #media pipe for hand tracking
 import pygame #pygame library for sound handling
 import numpy as np #imports numpy
+import sys
 
 # Initialize mixer for audio playback
 pygame.mixer.init()
@@ -36,6 +37,15 @@ def stop_all_notes():
             notes[note].stop()
             playing_states[note] = False
             trigger_states[note] = False
+
+def cleanup():
+    print("\nShutting down...")
+    stop_all_notes()
+    pygame.mixer.quit()
+    if 'cap' in globals() and cap.isOpened():
+        cap.release()
+    cv2.destroyAllWindows()
+    sys.exit(0)
 
 def play_note_based_on_fingers(hand_landmarks, hand_index):
     global finger_states
@@ -100,24 +110,32 @@ def play_note_based_on_fingers(hand_landmarks, hand_index):
             finger_states['V8'] = False
 
 # Video capture
-cap = cv2.VideoCapture(0)
+try:
+    cap = cv2.VideoCapture(0)
+    if not cap.isOpened():
+        raise RuntimeError("Could not open video capture")
 
-while cap.isOpened():
-    success, frame = cap.read()
-    if not success:
-        continue
+    while cap.isOpened():
+        success, frame = cap.read()
+        if not success:
+            continue
 
-    image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    results = hands.process(image)
+        image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        results = hands.process(image)
 
-    if results.multi_hand_landmarks:
-        for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
-            mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
-            play_note_based_on_fingers(hand_landmarks, idx)
+        if results.multi_hand_landmarks:
+            for idx, hand_landmarks in enumerate(results.multi_hand_landmarks):
+                mp_drawing.draw_landmarks(image, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+                play_note_based_on_fingers(hand_landmarks, idx)
 
-    cv2.imshow('Hand Gesture Music Player', cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
-    if cv2.waitKey(5) & 0xFF == ord('q'):
-        break
+        cv2.imshow('Hand Gesture Music Player', cv2.cvtColor(image, cv2.COLOR_RGB2BGR))
+        if cv2.waitKey(5) & 0xFF == ord('q'):
+            break
 
-cap.release()
-cv2.destroyAllWindows()
+except KeyboardInterrupt:
+    print("\nReceived KeyboardInterrupt")
+except Exception as e:
+    print(f"Error: {e}")
+finally:
+    cleanup()
+
